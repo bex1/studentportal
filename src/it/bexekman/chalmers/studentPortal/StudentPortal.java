@@ -135,13 +135,48 @@ public class StudentPortal
 	}
 
 
-	static void registerStudent(Connection conn, String student, String course)
+	static void registerStudent(Connection conn, String student, String courseCode)
 	{
 		// Your implementation here
 	}
 
-	static void unregisterStudent(Connection conn, String student, String course)
+	static void unregisterStudent(Connection conn, String student, String courseCode)
 	{
-		// Your implementation here
+		try {
+			String courseName = getCourseNameByID(conn, courseCode);
+			if (courseName != null) {
+				Statement statement = conn.createStatement();
+				int nbrDeletedRows = statement.executeUpdate("DELETE FROM Registrations "
+						+ "WHERE student = '" + student + "' "
+						+ "AND course = '" + courseCode + "'");
+				if (nbrDeletedRows > 0) {
+					System.out.println("You were successfully unregistered from course: " + courseCode + " " + courseName + "!");
+				} else {
+					System.out.println("You were never registered for course: " + courseCode + " " + courseName + ", hence you could not be unregistered.");
+				}
+			} else {
+				System.out.println("There is no course with coursecode: " + courseCode + ".");
+			}
+		} catch (SQLException e) {
+			System.err.println(e);
+			System.out.println("Error when unregistering student: " + student + " from course: " + courseCode);
+		}
+	}
+
+	/**
+	 * Finds the name of the course given the code of the course.
+	 * 
+	 * @param conn The database connection.
+	 * @param courseCode The code of the course.
+	 * @return The name of the course. null if there is no such course.
+	 * @throws SQLException 
+	 */
+	static String getCourseNameByID(Connection conn, String courseCode) throws SQLException {
+		Statement statement = conn.createStatement();
+		ResultSet course = statement.executeQuery("SELECT name FROM Courses WHERE code = '" + courseCode + "'");
+		if (course.next()) {
+			return course.getString("name");
+		}
+		return null;
 	}
 }
