@@ -74,9 +74,9 @@ public class StudentPortal
 				"\n---------------------------------");
 		try {
 			Statement infoStatement = conn.createStatement();
-			ResultSet studentInfo = infoStatement.executeQuery("SELECT name,programme,branch " +
-															   "FROM StudentsFollowing " +
-															   "WHERE personalnbr = '" + student + "'");
+			ResultSet studentInfo = infoStatement.executeQuery("SELECT name,programme,branch " 
+															 + "FROM StudentsFollowing " 
+															 + "WHERE personalnbr = '" + student + "'");
 			if (studentInfo.next()) {
 				sb.append("Name: " + studentInfo.getString("name") + 
 						"\nProgramme: " + studentInfo.getString("programme"));
@@ -86,9 +86,9 @@ public class StudentPortal
 			}
 			
 			sb.append("\n\nRead courses (name (code), credits: grade):");
-			ResultSet studentReadCourses = infoStatement.executeQuery("SELECT course, grade, name, credits " +
-																	  "FROM FinishedCourses " +
-																	  "WHERE student = '" + student + "'");
+			ResultSet studentReadCourses = infoStatement.executeQuery("SELECT course, grade, name, credits "
+																	+ "FROM FinishedCourses "
+																	+ "WHERE student = '" + student + "'");
 			while (studentReadCourses.next()) {
 				sb.append("\n " + studentReadCourses.getString("name") + 
 						  " (" + studentReadCourses.getString("course") + "), " + 
@@ -97,11 +97,35 @@ public class StudentPortal
 			}
 			
 			sb.append("\n\nRegistered courses (name (code), credits: status):");
-			ResultSet studentRegCourses = infoStatement.executeQuery("SELECT course, waitingStatus  " +
-					  												 "FROM Registrations A, Courses B   " +
-					  												 "WHERE student = '" + student + "'");
+			ResultSet studentRegCourses = infoStatement.executeQuery("WITH RegWithPos AS "
+																  +    "(SELECT A.course, A.student, A.waitingStatus, B.position "
+																  +    "FROM Registrations A LEFT OUTER JOIN CourseQueuePositions B "
+																  +    "ON A.student = B.student AND A.course = B.course) "
+																  + "SELECT A.name, A.credits, B.course, B.waitingStatus, B.position "
+																  +	"FROM Courses A, RegWithPos B "
+																  + "WHERE A.code = B.course "
+																  + "AND B.student = '" + student + "'");
+			while (studentRegCourses.next()) {
+				sb.append("\n " + studentRegCourses.getString("name") + 
+						  " (" + studentRegCourses.getString("course") + "), " + 
+						  studentRegCourses.getInt("credits") + "p: " + 
+						  studentRegCourses.getString("waitingStatus"));
+				int pos = studentRegCourses.getInt("position");
+				if (pos != 0) {
+					sb.append(" as nr " + pos);
+				}
+			}
 			
-
+			ResultSet studentGraduationPath = infoStatement.executeQuery("SELECT totalCredits, mathCredits, researchCredits, nbrSeminarCourses, qualifyForGrad "
+																	   + "FROM PathToGraduation "
+																	   + "WHERE student = '" + student + "'");
+			sb.append("\n\nSeminar courses taken: " + studentGraduationPath.getInt("nbrSeminarCourses"));
+			sb.append("\nMath credits taken: " + studentGraduationPath.getInt("mathCredits"));
+			sb.append("\nResearch credits taken: " + studentGraduationPath.getInt("researchCredits"));
+			sb.append("\nTotal credits taken: " + studentGraduationPath.getInt("totalCredits"));
+			sb.append("\nFulfills the requirements for graduation: " + studentGraduationPath.getString("qualifyForGrad"));
+			sb.append("\n---------------------------------\n\n");
+			
 		} catch (SQLException e) {
 			System.err.println(e);
 			return;
