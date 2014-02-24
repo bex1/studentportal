@@ -21,8 +21,8 @@ public class StudentPortal
 			try {
 				DriverManager.registerDriver(new oracle.jdbc.OracleDriver());
 				String url = "jdbc:oracle:thin:@tycho.ita.chalmers.se:1521/kingu.ita.chalmers.se";
-				String userName = ""; // Your username goes here!
-				String password = ""; // Your password goes here!
+				String userName = "vtda357_004"; // Your username goes here!
+				String password = "bexekman"; // Your password goes here!
 				Connection conn = DriverManager.getConnection(url,userName,password);
 
 				String student = args[0]; // This is the identifier for the student.
@@ -69,7 +69,44 @@ public class StudentPortal
 
 	static void getInformation(Connection conn, String student)
 	{
-		// Your implementation here
+		StringBuilder sb = new StringBuilder();
+		sb.append("Information for student " + student + 
+				"\n---------------------------------");
+		try {
+			Statement infoStatement = conn.createStatement();
+			ResultSet studentInfo = infoStatement.executeQuery("SELECT name,programme,branch " +
+															   "FROM StudentsFollowing " +
+															   "WHERE personalnbr = '" + student + "'");
+			if (studentInfo.next()) {
+				sb.append("Name: " + studentInfo.getString("name") + 
+						"\nProgramme: " + studentInfo.getString("programme"));
+				String branch = studentInfo.getString("branch");
+				if (branch != null)
+					sb.append("\nBranch: " + studentInfo.getString("branch"));
+			}
+			
+			sb.append("\n\nRead courses (name (code), credits: grade):");
+			ResultSet studentReadCourses = infoStatement.executeQuery("SELECT course, grade, name, credits " +
+																	  "FROM FinishedCourses " +
+																	  "WHERE student = '" + student + "'");
+			while (studentReadCourses.next()) {
+				sb.append("\n " + studentReadCourses.getString("name") + 
+						  " (" + studentReadCourses.getString("course") + "), " + 
+						  studentReadCourses.getInt("credits") + "p: " + 
+						  studentReadCourses.getString("grade"));
+			}
+			
+			sb.append("\n\nRegistered courses (name (code), credits: status):");
+			ResultSet studentRegCourses = infoStatement.executeQuery("SELECT course, waitingStatus  " +
+					  												 "FROM Registrations A, Courses B   " +
+					  												 "WHERE student = '" + student + "'");
+			
+
+		} catch (SQLException e) {
+			System.err.println(e);
+			return;
+		}
+		System.out.println(sb.toString());
 	}
 
 
