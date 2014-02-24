@@ -128,6 +128,7 @@ public class StudentPortal
 			
 		} catch (SQLException e) {
 			System.err.println(e);
+			System.out.println("Error getting information for student: " + student);
 			return;
 		}
 		System.out.println(sb.toString());
