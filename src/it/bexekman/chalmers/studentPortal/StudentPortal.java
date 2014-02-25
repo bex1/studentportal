@@ -67,116 +67,145 @@ public class StudentPortal
         }
     }
 
-    static void getInformation(Connection conn, String student)
+    static void getInformation(Connection conn, String studentID)
     {
         StringBuilder sb = new StringBuilder();
-        sb.append("Information for student " + student + 
+        
+        sb.append("Information for student " + studentID + 
                 "\n---------------------------------");
         try {
             Statement infoStatement = conn.createStatement();
-            ResultSet studentInfo = infoStatement.executeQuery("SELECT name,programme,branch " 
-                    + "FROM StudentsFollowing " 
-                    + "WHERE personalnbr = '" + student + "'");
-            if (studentInfo.next()) {
-                sb.append("Name: " + studentInfo.getString("name") + 
-                        "\nProgramme: " + studentInfo.getString("programme"));
-                String branch = studentInfo.getString("branch");
-                if (branch != null)
-                    sb.append("\nBranch: " + studentInfo.getString("branch"));
-            }
-
-            sb.append("\n\nRead courses (name (code), credits: grade):");
-            ResultSet studentReadCourses = infoStatement.executeQuery("SELECT course, grade, name, credits "
-                    + "FROM FinishedCourses "
-                    + "WHERE student = '" + student + "'");
-            while (studentReadCourses.next()) {
-                sb.append("\n " + studentReadCourses.getString("name") + 
-                        " (" + studentReadCourses.getString("course") + "), " + 
-                        studentReadCourses.getInt("credits") + "p: " + 
-                        studentReadCourses.getString("grade"));
-            }
-
-            sb.append("\n\nRegistered courses (name (code), credits: status):");
-            ResultSet studentRegCourses = infoStatement.executeQuery("WITH RegWithPos AS "
-                    +    "(SELECT A.course, A.student, A.waitingStatus, B.position "
-                    +    "FROM Registrations A LEFT OUTER JOIN CourseQueuePositions B "
-                    +    "ON A.student = B.student AND A.course = B.course) "
-                    + "SELECT A.name, A.credits, B.course, B.waitingStatus, B.position "
-                    + "FROM Courses A, RegWithPos B "
-                    + "WHERE A.code = B.course "
-                    + "AND B.student = '" + student + "'");
-            while (studentRegCourses.next()) {
-                sb.append("\n " + studentRegCourses.getString("name") + 
-                        " (" + studentRegCourses.getString("course") + "), " + 
-                        studentRegCourses.getInt("credits") + "p: " + 
-                        studentRegCourses.getString("waitingStatus"));
-                int pos = studentRegCourses.getInt("position");
-                if (pos != 0) {
-                    sb.append(" as nr " + pos);
-                }
-            }
-
-            ResultSet studentGraduationPath = infoStatement.executeQuery("SELECT totalCredits, mathCredits, researchCredits, nbrSeminarCourses, qualifyForGrad "
-                    + "FROM PathToGraduation "
-                    + "WHERE student = '" + student + "'");
-            sb.append("\n\nSeminar courses taken: " + studentGraduationPath.getInt("nbrSeminarCourses"));
-            sb.append("\nMath credits taken: " + studentGraduationPath.getInt("mathCredits"));
-            sb.append("\nResearch credits taken: " + studentGraduationPath.getInt("researchCredits"));
-            sb.append("\nTotal credits taken: " + studentGraduationPath.getInt("totalCredits"));
-            sb.append("\nFulfills the requirements for graduation: " + studentGraduationPath.getString("qualifyForGrad"));
-            sb.append("\n---------------------------------\n\n");
-
-        } catch (SQLException e) {
+            
+            appendGeneralStudentInfo(sb, infoStatement, studentID);
+            appendReadCoursesInfo(sb, infoStatement, studentID);
+            appendRegisteredCoursesInfo(sb, infoStatement, studentID);
+            appendGraduationInfo(sb, infoStatement, studentID);
+        } 
+        catch (SQLException e) {
             System.err.println(e);
-            System.out.println("Error getting information for student: " + student);
+            System.out.println("Error getting information for student: " + studentID);
             return;
         }
+        sb.append("\n---------------------------------\n\n");
         System.out.println(sb.toString());
     }
-
-
-    static void registerStudent(Connection conn, String student, String courseCode)
+    
+    static void registerStudent(Connection conn, String studentID, String courseCode)
     {
         // Your implementation here
     }
 
-    static void unregisterStudent(Connection conn, String student, String courseCode)
+    static void unregisterStudent(Connection conn, String studentID, String courseCode)
     {
         try {
-            String courseName = getCourseNameByCode(conn, courseCode);
+            Statement statement = conn.createStatement();
+            String courseName = getCourseNameByCode(statement, courseCode);
             if (courseName != null) {
-                Statement statement = conn.createStatement();
-                int nbrDeletedRows = statement.executeUpdate("DELETE FROM Registrations "
-                        + "WHERE student = '" + student + "' "
-                        + "AND course = '" + courseCode + "'");
-                if (nbrDeletedRows > 0) {
+                
+                if (deleteRegistration(statement, studentID, courseCode)) {
                     System.out.println("You were successfully unregistered from course: " + courseCode + " " + courseName + "!");
                 } else {
                     System.out.println("You were never registered for course: " + courseCode + " " + courseName + ", hence you could not be unregistered.");
                 }
+                
             } else {
                 System.out.println("There is no course with coursecode: " + courseCode + ".");
             }
         } catch (SQLException e) {
             System.err.println(e);
-            System.out.println("Error when unregistering student: " + student + " from course: " + courseCode);
+            System.out.println("Error when unregistering student: " + studentID + " from course: " + courseCode);
         }
     }
 
-    /**
-     * Finds the name of the course given the code of the course.
-     * 
-     * @param conn The database connection.
-     * @param courseCode The code of the course.
-     * @return The name of the course. null if there is no such course.
-     * @throws SQLException 
-     */
-    static String getCourseNameByCode(Connection conn, String courseCode) throws SQLException {
-        Statement statement = conn.createStatement();
+
+    private static void appendGeneralStudentInfo(StringBuilder sb, Statement infoStatement, String studentID) throws SQLException 
+    {
+        ResultSet studentInfo = infoStatement.executeQuery("SELECT name,programme,branch " 
+                + "FROM StudentsFollowing " 
+                + "WHERE personalnbr = '" + studentID + "'");
+        
+        if (studentInfo.next()) {
+            sb.append("Name: " + studentInfo.getString("name") + 
+                    "\nProgramme: " + studentInfo.getString("programme"));
+            String branch = studentInfo.getString("branch");
+            if (branch != null)
+                sb.append("\nBranch: " + studentInfo.getString("branch"));
+        }
+    }
+
+    private static void appendReadCoursesInfo(StringBuilder sb, Statement infoStatement, String studentID) throws SQLException 
+    {
+        sb.append("\n\nRead courses (name (code), credits: grade):");
+        
+        ResultSet studentReadCourses = infoStatement.executeQuery("SELECT course, grade, name, credits "
+                + "FROM FinishedCourses "
+                + "WHERE student = '" + studentID + "'");
+        
+        while (studentReadCourses.next()) {
+            sb.append("\n " + studentReadCourses.getString("name") + 
+                    " (" + studentReadCourses.getString("course") + "), " + 
+                    studentReadCourses.getInt("credits") + "p: " + 
+                    studentReadCourses.getString("grade"));
+        }
+    }
+
+    private static void appendRegisteredCoursesInfo(StringBuilder sb, Statement infoStatement, String studentID) throws SQLException 
+    {
+        sb.append("\n\nRegistered courses (name (code), credits: status):");
+        
+        ResultSet studentRegCourses = infoStatement.executeQuery("WITH RegWithPos AS "
+                +    "(SELECT A.course, A.student, A.waitingStatus, B.position "
+                +    "FROM Registrations A LEFT OUTER JOIN CourseQueuePositions B "
+                +    "ON A.student = B.student AND A.course = B.course) "
+                + "SELECT A.name, A.credits, B.course, B.waitingStatus, B.position "
+                + "FROM Courses A, RegWithPos B "
+                + "WHERE A.code = B.course "
+                + "AND B.student = '" + studentID + "'");
+        
+        while (studentRegCourses.next()) {
+            sb.append("\n " + studentRegCourses.getString("name") + 
+                    " (" + studentRegCourses.getString("course") + "), " + 
+                    studentRegCourses.getInt("credits") + "p: " + 
+                    studentRegCourses.getString("waitingStatus"));
+            int pos = studentRegCourses.getInt("position");
+            if (pos != 0) {
+                sb.append(" as nr " + pos);
+            }
+        }
+    }
+
+    private static void appendGraduationInfo(StringBuilder sb, Statement infoStatement, String studentID) throws SQLException 
+    {
+        ResultSet studentGraduationPath = infoStatement.executeQuery("SELECT totalCredits, mathCredits, researchCredits, nbrSeminarCourses, qualifyForGrad "
+                + "FROM PathToGraduation "
+                + "WHERE student = '" + studentID + "'");
+        
+        sb.append("\n\nSeminar courses taken: " + studentGraduationPath.getInt("nbrSeminarCourses"));
+        sb.append("\nMath credits taken: " + studentGraduationPath.getInt("mathCredits"));
+        sb.append("\nResearch credits taken: " + studentGraduationPath.getInt("researchCredits"));
+        sb.append("\nTotal credits taken: " + studentGraduationPath.getInt("totalCredits"));
+        sb.append("\nFulfills the requirements for graduation: " + (studentGraduationPath.getString("qualifyForGrad").equalsIgnoreCase("true") ? "yes" : "no"));
+    }
+    
+    // returns null if there is no such course.
+    private static String getCourseNameByCode(Statement statement, String courseCode) throws SQLException 
+    {
         ResultSet course = statement.executeQuery("SELECT name FROM Courses WHERE code = '" + courseCode + "'");
+        
         if (course.next()) {
             return course.getString("name");
         }
-        return null;
+        return null; 
     }
+    
+    // returns true if registration was deleted, false if there was no registration
+    private static boolean deleteRegistration(Statement statement, String studentID, String courseCode) throws SQLException {
+        int nbrDeletedRows = statement.executeUpdate("DELETE FROM Registrations "
+                + "WHERE student = '" + studentID + "' "
+                + "AND course = '" + courseCode + "'");
+        
+        return nbrDeletedRows > 0;
+    }
+
+   
 }
