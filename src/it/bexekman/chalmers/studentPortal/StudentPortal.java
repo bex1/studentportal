@@ -71,7 +71,7 @@ public class StudentPortal
     {
         StringBuilder sb = new StringBuilder();
         
-        sb.append("Information for student " + studentID + 
+        sb.append("\nInformation for student " + studentID + 
                 "\n---------------------------------");
         try {
             Statement infoStatement = conn.createStatement();
@@ -83,7 +83,7 @@ public class StudentPortal
         } 
         catch (SQLException e) {
             System.err.println(e);
-            System.out.println("Error getting information for student: " + studentID);
+            System.out.println("\nError getting information for student: " + studentID + "\n");
             return;
         }
         sb.append("\n---------------------------------\n\n");
@@ -92,10 +92,33 @@ public class StudentPortal
     
     static void registerStudent(Connection conn, String studentID, String courseCode)
     {
-        // Your implementation here
+        try {
+			Statement statement = conn.createStatement();
+			System.out.println(createRegistrationWithResultString(statement, studentID, courseCode));
+		} catch (SQLException e) {
+			switch (e.getErrorCode()) {
+			case 20001:
+				System.out.println("\nYou have already passed the course " + courseCode + ", hence you can not be registered again.\n");
+				break;
+			case 20002:
+				System.out.println("\nYou are already registered on the course " + courseCode + ".\n");
+				break;
+			case 20003:
+				System.out.println("\nYou are already on the waitinglist for the course " + courseCode + ".\n");
+				break;
+			case 20004:
+				System.out.println("\nYou lack the prerequisites from the " + courseCode + ".\n");
+				break;
+			default: 
+				System.err.println(e);
+				System.out.println("\nError when registering student: " + studentID + " into course: " + courseCode + "\n");
+				break;
+			}
+		}
+        
     }
 
-    static void unregisterStudent(Connection conn, String studentID, String courseCode)
+	static void unregisterStudent(Connection conn, String studentID, String courseCode)
     {
         try {
             Statement statement = conn.createStatement();
@@ -103,17 +126,17 @@ public class StudentPortal
             if (courseName != null) {
                 
                 if (deleteRegistration(statement, studentID, courseCode)) {
-                    System.out.println("You were successfully unregistered from course: " + courseCode + " " + courseName + "!");
+                    System.out.println("\nYou were successfully unregistered from course: " + courseCode + " " + courseName + "!\n");
                 } else {
-                    System.out.println("You were never registered for course: " + courseCode + " " + courseName + ", hence you could not be unregistered.");
+                    System.out.println("\nYou were never registered for course: " + courseCode + " " + courseName + ", hence you could not be unregistered.\n");
                 }
                 
             } else {
-                System.out.println("There is no course with coursecode: " + courseCode + ".");
+                System.out.println("\nThere is no course with coursecode: " + courseCode + ".\n");
             }
         } catch (SQLException e) {
             System.err.println(e);
-            System.out.println("Error when unregistering student: " + studentID + " from course: " + courseCode);
+            System.out.println("\nError when unregistering student: " + studentID + " from course: " + courseCode + "\n");
         }
     }
 
@@ -125,7 +148,7 @@ public class StudentPortal
                 + "WHERE personalnbr = '" + studentID + "'");
         
         if (studentInfo.next()) {
-            sb.append("Name: " + studentInfo.getString("name") + 
+            sb.append("\nName: " + studentInfo.getString("name") + 
                     "\nProgramme: " + studentInfo.getString("programme"));
             String branch = studentInfo.getString("branch");
             if (branch != null)
@@ -179,13 +202,34 @@ public class StudentPortal
         ResultSet studentGraduationPath = infoStatement.executeQuery("SELECT totalCredits, mathCredits, researchCredits, nbrSeminarCourses, qualifyForGrad "
                 + "FROM PathToGraduation "
                 + "WHERE student = '" + studentID + "'");
-        
-        sb.append("\n\nSeminar courses taken: " + studentGraduationPath.getInt("nbrSeminarCourses"));
-        sb.append("\nMath credits taken: " + studentGraduationPath.getInt("mathCredits"));
-        sb.append("\nResearch credits taken: " + studentGraduationPath.getInt("researchCredits"));
-        sb.append("\nTotal credits taken: " + studentGraduationPath.getInt("totalCredits"));
-        sb.append("\nFulfills the requirements for graduation: " + (studentGraduationPath.getString("qualifyForGrad").equalsIgnoreCase("true") ? "yes" : "no"));
+
+        if (studentGraduationPath.next()) {
+        	sb.append("\n\nSeminar courses taken: " + studentGraduationPath.getInt("nbrSeminarCourses"));
+        	sb.append("\nMath credits taken: " + studentGraduationPath.getInt("mathCredits"));
+        	sb.append("\nResearch credits taken: " + studentGraduationPath.getInt("researchCredits"));
+        	sb.append("\nTotal credits taken: " + studentGraduationPath.getInt("totalCredits"));
+        	sb.append("\nFulfills the requirements for graduation: " + (studentGraduationPath.getString("qualifyForGrad").equalsIgnoreCase("true") ? "yes" : "no"));
+        }
     }
+    
+    private static String createRegistrationWithResultString(Statement statement, String studentID, String courseCode)  throws SQLException {
+    	String courseName = getCourseNameByCode(statement, courseCode);
+		if (courseName != null) {
+	    	statement.executeUpdate("INSERT INTO Registrations VALUES ('" + studentID + "', '" + courseCode + "', null)");
+			
+	    	ResultSet waiting = statement.executeQuery("SELECT position "
+					+ "FROM CourseQueuePositions "
+					+ "WHERE student = '" + studentID + "' "
+					+ "AND course = '" + courseCode + "'");
+			if (waiting.next()) {
+				return "\nCourse "  + courseCode + " " + courseName + " is full, you are put in the waiting list as number " + waiting.getInt("position") + ".\n";
+			} else {
+				return "\nYou are now successfully registered to course " + courseCode + " " + courseName + "!\n";
+			}
+		} else {
+			return "\nThere is no course with coursecode: " + courseCode + ".\n";
+		}
+	}
     
     // returns null if there is no such course.
     private static String getCourseNameByCode(Statement statement, String courseCode) throws SQLException 
